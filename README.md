@@ -38,4 +38,12 @@
 - [ ] Release of model weights featuring multi-turn dialogue and 3D editing capabilities.
 - [ ] Release of the entire 3D-Alpaca dataset.
 
+## Acknowledgement
+Our code is based on these wonderful repos:
+* **[LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory)**
+* **[TRELLIS](https://github.com/microsoft/TRELLIS)**
+* **[PointLLM](https://github.com/OpenRobotLab/PointLLM)**
+* **[Qwen2.5-VL](https://github.com/QwenLM/Qwen2.5-VL)**
+* [LLaMA-Mesh](https://github.com/nv-tlabs/LLaMA-Mesh)
+
 
