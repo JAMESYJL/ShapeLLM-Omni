@@ -1,5 +1,4 @@
 import os
-os.environ["GRADIO_TEMP_DIR"] = "/mnt/vepfs/eden/yejunliang/gt/"
 import torch
 from threading import Thread
 import gradio as gr
@@ -102,8 +101,6 @@ def predict(_chatbot,task_history,viewer_voxel,viewer_mesh,task_new,seed,top_k,t
 
     eos_token_id = [tokenizer.eos_token_id,159858]
     streamer = TextIteratorStreamer(tokenizer, timeout=20.0, skip_prompt=True, skip_special_tokens=True)
-    #gen_kwargs = {'max_new_tokens': 2048, 'streamer': streamer,"eos_token_id":eos_token_id,\
-    #               "temperature":0.1,"eos_token_id":eos_token_id,**inputs}
     gen_kwargs = {'max_new_tokens': 2048, 'streamer': streamer,"eos_token_id":eos_token_id,\
                    "top_k":top_k,"top_p":top_p,"temperature":temperature,"eos_token_id":eos_token_id,**inputs}
 
@@ -144,8 +141,7 @@ def predict(_chatbot,task_history,viewer_voxel,viewer_mesh,task_new,seed,top_k,t
         ss=ss.unsqueeze(0)
         coords = torch.argwhere(ss>0)[:, [0, 2, 3, 4]].int()
         coords = coords.to(model.device)
-        #try:
-        if True:
+        try:
             print("processing mesh...")
             if len(image_lst) == []:
                 # text to 3d
@@ -182,9 +178,9 @@ def predict(_chatbot,task_history,viewer_voxel,viewer_mesh,task_new,seed,top_k,t
                 glb.export(f"temper.glb")
                 print("processing mesh over...")
                 yield _chatbot,fig,"temper.glb",task_new
-        #except:
-        #    print("processing mesh...bug")
-        #    yield _chatbot,fig,viewer_mesh,task_new
+        except:
+            print("processing mesh...bug")
+            yield _chatbot,fig,viewer_mesh,task_new
 
 def regenerate(_chatbot, task_history):
     if not task_history:
@@ -308,10 +304,6 @@ def make_pointcloud_figure1(verts):
 
 def make_pointcloud_figure(verts,rotate=False):
     if rotate:
-        #verts = rotate_points(verts, axis='x', angle_deg=-90)
-        #verts = rotate_points(verts, axis='y', angle_deg=-90)
-        #verts = rotate_points(verts, axis='x', angle_deg=90)
-        #verts = rotate_points(verts, axis='z', angle_deg=90)
         verts = verts.copy()
         verts[:, 0] *= -1.0
     N      = len(verts)
@@ -321,10 +313,10 @@ def make_pointcloud_figure(verts,rotate=False):
     random.shuffle(base_colors)
 
     camera = dict(
-        eye=dict(x=0.0, y=2.5, z=0.0),   # 相机在 Y 轴正方向 2.5 单位处
-        center=dict(x=0.0, y=0.0, z=0.0),# 焦点指向原点
-        up=dict(x=0.0, y=0.0, z=1.0),    # 保持 Z 轴向上
-        projection=dict(type="orthographic")  # 正交投影
+        eye=dict(x=0.0, y=2.5, z=0.0),   
+        center=dict(x=0.0, y=0.0, z=0.0),
+        up=dict(x=0.0, y=0.0, z=1.0),    
+        projection=dict(type="orthographic")  
     )
 
     scatter = go.Scatter3d(
@@ -333,10 +325,10 @@ def make_pointcloud_figure(verts,rotate=False):
         z=verts[:, 2],
         mode='markers',
         marker=dict(
-            size=2,           # 点更小，减少“颗粒感”
-            color=base_colors,  # 传入打乱后的 颜色列表
-            opacity=1,        # 更低的透明度，加强“云雾般”效果
-            line=dict(width=1)  # 去掉点轮廓
+            size=2,           
+            color=base_colors,  
+            opacity=1,        
+            line=dict(width=1)  
         )
     )
     layout = go.Layout(
@@ -381,8 +373,8 @@ def load_vertices(filepath):
     vertices = np.asarray(mesh.vertices)
     min_vals = vertices.min()
     max_vals = vertices.max()
-    vertices_normalized = (vertices - min_vals) / (max_vals - min_vals)  # 先映射到 [0,1]
-    vertices = vertices_normalized * 1.0 - 0.5  # 再映射到 [-0.5, 0.5]
+    vertices_normalized = (vertices - min_vals) / (max_vals - min_vals)  
+    vertices = vertices_normalized * 1.0 - 0.5  
     vertices = np.clip(vertices, -0.5 + 1e-6, 0.5 - 1e-6)
     mesh.vertices = o3d.utility.Vector3dVector(vertices)
     voxel_grid = o3d.geometry.VoxelGrid.create_from_triangle_mesh_within_bounds(mesh, voxel_size=1/64, min_bound=(-0.5, -0.5, -0.5), max_bound=(0.5, 0.5, 0.5))
@@ -420,33 +412,27 @@ def _transform_messages(original_messages):
 
     return transformed_messages
 
-# --------- Configuration & Model Loading ---------
 from trellis.models.sparse_structure_vqvae import VQVAE3D
 device       = torch.device("cuda")
 vqvae        = VQVAE3D(num_embeddings=8192)
 device       = torch.device("cuda")
 vqvae.eval()
-#filepath = hf_hub_download(repo_id="yejunliang23/3DVQVAE",\
-#                           filename="3DVQVAE.bin",token="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")
-state_dict = torch.load("/mnt/vepfs/eden/yejunliang/.cache/huggingface/hub/models--yejunliang23--3DVQVAE/snapshots/46a77bb1c2406a59031271d701a570b1431719ee/3DVQVAE.bin", map_location="cpu")
+filepath = hf_hub_download(repo_id="yejunliang23/3DVQVAE",filename="3DVQVAE.bin")
+state_dict = torch.load(filepath, map_location="cpu")
 vqvae.load_state_dict(state_dict)
 vqvae=vqvae.to(device)
 
 MODEL_DIR = "yejunliang23/ShapeLLM-7B-omni"
 model_ckpt_path=MODEL_DIR
-#"Qwen/Qwen2.5-VL-3B-Instruct"
-# Load processor, tokenizer, model for Qwen2.5-VL
 model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-    model_ckpt_path, torch_dtype="auto", device_map={"": 0},token="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")
-processor = AutoProcessor.from_pretrained(model_ckpt_path,token="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")
+    model_ckpt_path, torch_dtype="auto", device_map={"": 0})
+processor = AutoProcessor.from_pretrained(model_ckpt_path)
 tokenizer = processor.tokenizer
 from huggingface_hub import hf_hub_download
 
-#pipeline_text = TrellisTextTo3DPipeline.from_pretrained("JeffreyXiang/TRELLIS-text-xlarge")
-pipeline_text = TrellisTextTo3DPipeline.from_pretrained("/mnt/vepfs/eden/yejunliang/.cache/huggingface/hub/models--JeffreyXiang--TRELLIS-text-xlarge/snapshots/e0b00432b8e3a8ecee0df806ab1df9f7281f2be4")
+pipeline_text = TrellisTextTo3DPipeline.from_pretrained("JeffreyXiang/TRELLIS-text-xlarge")
 pipeline_text.to(device)
-#pipeline_image = TrellisImageTo3DPipeline.from_pretrained("JeffreyXiang/TRELLIS-image-large")
-pipeline_image = TrellisImageTo3DPipeline.from_pretrained("/mnt/vepfs/eden/yejunliang/.cache/huggingface/hub/models--JeffreyXiang--TRELLIS-image-large/snapshots/25e0d31ffbebe4b5a97464dd851910efc3002d96")
+pipeline_image = TrellisImageTo3DPipeline.from_pretrained("JeffreyXiang/TRELLIS-image-large")
 pipeline_image.to(device)
 
 _DESCRIPTION = '''
@@ -455,7 +441,6 @@ _DESCRIPTION = '''
 * The model's 3D understanding is limited to shape only, so color and texture should be ignored in 3D captioning tasks
 '''
 with gr.Blocks() as demo:
-    #gr.Markdown("""<center><font size=3> ShapeLLM-Omni-7B Demo </center>""")
     gr.Markdown("# ShapeLLM-omni: A Native Multimodal LLM for 3D Generation and Understanding")
     gr.Markdown(_DESCRIPTION)
     with gr.Row():
