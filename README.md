@@ -27,6 +27,9 @@
 
 </div>
 
+<p align="center">
+    <img src="assets/head.jpg">
+</p>
 ## Release
 - [6/03] 🔥🔥We released the pretrained weights for both **ShapeLLM-omni** (7B) and **3DVQVAE**.
 - [6/03] 🔥🔥We released 50k high-quality 3D edited data pairs.
