@@ -1,5 +1,5 @@
 <p align="center">
-  <h3 align="center"><strong>ShapeLLM-omni: A Native Multimodal LLM for 3D Generation and Understanding</strong></h3>
+  <h3 align="center"><strong>ShapeLLM-Omni: A Native Multimodal LLM for 3D Generation and Understanding</strong></h3>
 
 <p align="center">
     <a href="https://jamesyjl.github.io/">Junliang Ye</a><sup>1,2*</sup>,
