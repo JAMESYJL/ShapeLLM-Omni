@@ -1,403 +1,531 @@
-import gradio as gr
-from gradio_litmodel3d import LitModel3D
-
 import os
-import shutil
-from typing import *
+os.environ["GRADIO_TEMP_DIR"] = "/mnt/vepfs/eden/yejunliang/gt/"
 import torch
-import numpy as np
-import imageio
-from easydict import EasyDict as edict
-from PIL import Image
-from trellis.pipelines import TrellisImageTo3DPipeline
-from trellis.representations import Gaussian, MeshExtractResult
+from threading import Thread
+import gradio as gr
+from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor,TextIteratorStreamer,AutoTokenizer
+from qwen_vl_utils import process_vision_info
+from trellis.pipelines import TrellisImageTo3DPipeline,TrellisTextTo3DPipeline
 from trellis.utils import render_utils, postprocessing_utils
+import trimesh
+from trimesh.exchange.gltf import export_glb
+import numpy as np
+import tempfile
+import copy
+import plotly.graph_objs as go
+from PIL import Image
+import plotly.express as px
+import random
+import open3d as o3d
 
+def _remove_image_special(text):
+    text = text.replace('<ref>', '').replace('</ref>', '')
+    return re.sub(r'<box>.*?(</box>|$)', '', text)
 
-MAX_SEED = np.iinfo(np.int32).max
-TMP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tmp')
-os.makedirs(TMP_DIR, exist_ok=True)
+def is_video_file(filename):
+    video_extensions = ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.mpeg']
+    return any(filename.lower().endswith(ext) for ext in video_extensions)
 
+def token_to_mesh(full_response):
+    d1=full_response.split("><mesh")
+    d2=[]
+    for i in range(len(d1)):
+        try:
+            if d1[i][:5]=="<mesh":
+                d2.append(int(d1[i][5:]))
+            else:
+                d2.append(int(d1[i]))
+        except:
+            pass
+    while len(d2)<1024:
+        d2.append(d2[-1])
+    encoding_indices=torch.tensor(d2).unsqueeze(0)
+    return encoding_indices
 
-def start_session(req: gr.Request):
-    user_dir = os.path.join(TMP_DIR, str(req.session_hash))
-    os.makedirs(user_dir, exist_ok=True)
-    
-    
-def end_session(req: gr.Request):
-    user_dir = os.path.join(TMP_DIR, str(req.session_hash))
-    shutil.rmtree(user_dir)
+def save_ply_from_array(verts):    
+    header = [
+        "ply",
+        "format ascii 1.0",
+        f"element vertex {verts.shape[0]}",
+        "property float x",
+        "property float y",
+        "property float z",
+        "end_header"
+    ]
+    tmpf = tempfile.NamedTemporaryFile(suffix=".ply", delete=False)
+    tmpf.write(("\n".join(header) + "\n").encode("utf-8"))
+    np.savetxt(tmpf, verts, fmt="%.6f")
+    tmpf.flush(); tmpf.close()
+    return tmpf.name
 
+def predict(_chatbot,task_history,viewer_voxel,viewer_mesh,task_new,seed,top_k,top_p,temperature):
+    torch.manual_seed(seed)
+    chat_query = _chatbot[-1][0]
+    query = task_history[-1][0]
 
-def preprocess_image(image: Image.Image) -> Image.Image:
-    """
-    Preprocess the input image.
+    if len(chat_query) == 0:
+        _chatbot.pop()
+        task_history.pop()
+        return _chatbot,task_history,viewer_voxel,viewer_mesh,task_new
+    print("User: " + _parse_text(query))
+    history_cp = copy.deepcopy(task_history)
+    full_response = ""
+    messages = []
+    content = []
 
-    Args:
-        image (Image.Image): The input image.
+    image_lst = []
+    for q, a in task_new:
+        if isinstance(q, (tuple, list)):
+            if not is_video_file(q[0]):
+                image_lst.append(q[0])
+            else:
+                image_lst.append(q[0])
 
-    Returns:
-        Image.Image: The preprocessed image.
-    """
-    processed_image = pipeline.preprocess_image(image)
-    return processed_image
+    task_new.clear()
+    for q, a in history_cp:
+        if isinstance(q, (tuple, list)):
+            if is_video_file(q[0]):
+                content.append({'video': f'file://{q[0]}'})
+            else:
+                content.append({'image': f'file://{q[0]}'})
+        else:
+            content.append({'text': q})
+            messages.append({'role': 'user', 'content': content})
+            messages.append({'role': 'assistant', 'content': [{'text': a}]})
+            content = []
+    messages.pop()
+    messages = _transform_messages(messages)
+    text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    image_inputs, video_inputs = process_vision_info(messages)
+    inputs = processor(text=[text], images=image_inputs,videos=video_inputs, padding=True, return_tensors='pt')
+    inputs = inputs.to(model.device)
 
+    eos_token_id = [tokenizer.eos_token_id,159858]
+    streamer = TextIteratorStreamer(tokenizer, timeout=20.0, skip_prompt=True, skip_special_tokens=True)
+    #gen_kwargs = {'max_new_tokens': 2048, 'streamer': streamer,"eos_token_id":eos_token_id,\
+    #               "temperature":0.1,"eos_token_id":eos_token_id,**inputs}
+    gen_kwargs = {'max_new_tokens': 2048, 'streamer': streamer,"eos_token_id":eos_token_id,\
+                   "top_k":top_k,"top_p":top_p,"temperature":temperature,"eos_token_id":eos_token_id,**inputs}
 
-def preprocess_images(images: List[Tuple[Image.Image, str]]) -> List[Image.Image]:
-    """
-    Preprocess a list of input images.
-    
-    Args:
-        images (List[Tuple[Image.Image, str]]): The input images.
-        
-    Returns:
-        List[Image.Image]: The preprocessed images.
-    """
-    images = [image[0] for image in images]
-    processed_images = [pipeline.preprocess_image(image) for image in images]
-    return processed_images
+    thread = Thread(target=model.generate, kwargs=gen_kwargs)
+    thread.start()
+    full_response = ""
+    encoding_indices = None
+    _chatbot[-1] = (_parse_text(chat_query), "")  
+    for new_text in streamer:
+        if new_text:
+            if "<mesh" in new_text:
+                encoding_indices = token_to_mesh(new_text)
+                new_text = new_text.replace("><",",")[1:-1]
+                new_text = new_text.split("mesh-start,")[1].split(",mesh-end")[0]
+                new_text = f"mesh-start\n{new_text}\nmesh-end"
+            full_response += new_text
+            _chatbot[-1] = (_parse_text(chat_query), _parse_text(full_response))
+            yield _chatbot,viewer_voxel,viewer_mesh,task_new
 
+    task_history[-1] = (chat_query, full_response)
+    yield _chatbot,viewer_voxel,viewer_mesh,task_new
 
-def pack_state(gs: Gaussian, mesh: MeshExtractResult) -> dict:
-    return {
-        'gaussian': {
-            **gs.init_params,
-            '_xyz': gs._xyz.cpu().numpy(),
-            '_features_dc': gs._features_dc.cpu().numpy(),
-            '_scaling': gs._scaling.cpu().numpy(),
-            '_rotation': gs._rotation.cpu().numpy(),
-            '_opacity': gs._opacity.cpu().numpy(),
-        },
-        'mesh': {
-            'vertices': mesh.vertices.cpu().numpy(),
-            'faces': mesh.faces.cpu().numpy(),
-        },
-    }
-    
-    
-def unpack_state(state: dict) -> Tuple[Gaussian, edict, str]:
-    gs = Gaussian(
-        aabb=state['gaussian']['aabb'],
-        sh_degree=state['gaussian']['sh_degree'],
-        mininum_kernel_size=state['gaussian']['mininum_kernel_size'],
-        scaling_bias=state['gaussian']['scaling_bias'],
-        opacity_bias=state['gaussian']['opacity_bias'],
-        scaling_activation=state['gaussian']['scaling_activation'],
-    )
-    gs._xyz = torch.tensor(state['gaussian']['_xyz'], device='cuda')
-    gs._features_dc = torch.tensor(state['gaussian']['_features_dc'], device='cuda')
-    gs._scaling = torch.tensor(state['gaussian']['_scaling'], device='cuda')
-    gs._rotation = torch.tensor(state['gaussian']['_rotation'], device='cuda')
-    gs._opacity = torch.tensor(state['gaussian']['_opacity'], device='cuda')
-    
-    mesh = edict(
-        vertices=torch.tensor(state['mesh']['vertices'], device='cuda'),
-        faces=torch.tensor(state['mesh']['faces'], device='cuda'),
-    )
-    
-    return gs, mesh
+    if encoding_indices is not None:
+        print("processing mesh...")
+        #encoding_indices = token_to_mesh(full_response)
+        recon = vqvae.Decode(encoding_indices.to(model.device))
+        z_s           = recon[0].detach().cpu() #torch.Size([1, 64, 64, 64])
+        z_s           = (z_s>0)*1      #torch.Size([1, 64, 64, 64])
+        indices       = torch.nonzero(z_s[0] == 1)  #torch.Size([1, 64, 64, 64])
+        position_recon= (indices.float() + 0.5) / 64 - 0.5 
+        fig = make_pointcloud_figure(position_recon)
+        yield _chatbot,fig,viewer_mesh,task_new
 
+        position=position_recon
+        coords        = ((position + 0.5) * 64).int().contiguous()
+        ss            = torch.zeros(1, 64, 64, 64, dtype=torch.long)
+        ss[:, coords[:, 0], coords[:, 1], coords[:, 2]] = 1
+        ss=ss.unsqueeze(0)
+        coords = torch.argwhere(ss>0)[:, [0, 2, 3, 4]].int()
+        coords = coords.to(model.device)
+        #try:
+        if True:
+            print("processing mesh...")
+            if len(image_lst) == []:
+                # text to 3d
+                with torch.no_grad():
+                    prompt  = chat_query
+                    cond    = pipeline_text.get_cond([prompt])
+                    slat    = pipeline_text.sample_slat(cond, coords)
+                    outputs = pipeline_text.decode_slat(slat, ['mesh', 'gaussian'])
 
-def get_seed(randomize_seed: bool, seed: int) -> int:
-    """
-    Get the random seed.
-    """
-    return np.random.randint(0, MAX_SEED) if randomize_seed else seed
+                glb = postprocessing_utils.to_glb(
+                    outputs['gaussian'][0],
+                    outputs['mesh'][0],
+                    simplify=0.95,          
+                    texture_size=1024,    
+                    verbose=False  
+                )
+                glb.export(f"temper.glb")
+                print("processing mesh over...")
+                yield _chatbot,fig,"temper.glb"
+            else:
+                # image to 3d
+                with torch.no_grad():
+                    img = pipeline_image.preprocess_image(Image.open(image_lst[-1]))
+                    cond    = pipeline_image.get_cond([img])
+                    slat    = pipeline_image.sample_slat(cond, coords)
+                    outputs = pipeline_image.decode_slat(slat, ['mesh', 'gaussian'])
+                glb = postprocessing_utils.to_glb(
+                    outputs['gaussian'][0],
+                    outputs['mesh'][0],
+                    simplify=0.95,          
+                    texture_size=1024,    
+                    verbose=False  
+                )
+                glb.export(f"temper.glb")
+                print("processing mesh over...")
+                yield _chatbot,fig,"temper.glb",task_new
+        #except:
+        #    print("processing mesh...bug")
+        #    yield _chatbot,fig,viewer_mesh,task_new
 
-
-def image_to_3d(
-    image: Image.Image,
-    multiimages: List[Tuple[Image.Image, str]],
-    is_multiimage: bool,
-    seed: int,
-    ss_guidance_strength: float,
-    ss_sampling_steps: int,
-    slat_guidance_strength: float,
-    slat_sampling_steps: int,
-    multiimage_algo: Literal["multidiffusion", "stochastic"],
-    req: gr.Request,
-) -> Tuple[dict, str]:
-    """
-    Convert an image to a 3D model.
-
-    Args:
-        image (Image.Image): The input image.
-        multiimages (List[Tuple[Image.Image, str]]): The input images in multi-image mode.
-        is_multiimage (bool): Whether is in multi-image mode.
-        seed (int): The random seed.
-        ss_guidance_strength (float): The guidance strength for sparse structure generation.
-        ss_sampling_steps (int): The number of sampling steps for sparse structure generation.
-        slat_guidance_strength (float): The guidance strength for structured latent generation.
-        slat_sampling_steps (int): The number of sampling steps for structured latent generation.
-        multiimage_algo (Literal["multidiffusion", "stochastic"]): The algorithm for multi-image generation.
-
-    Returns:
-        dict: The information of the generated 3D model.
-        str: The path to the video of the 3D model.
-    """
-    user_dir = os.path.join(TMP_DIR, str(req.session_hash))
-    if not is_multiimage:
-        outputs = pipeline.run(
-            image,
-            seed=seed,
-            formats=["gaussian", "mesh"],
-            preprocess_image=False,
-            sparse_structure_sampler_params={
-                "steps": ss_sampling_steps,
-                "cfg_strength": ss_guidance_strength,
-            },
-            slat_sampler_params={
-                "steps": slat_sampling_steps,
-                "cfg_strength": slat_guidance_strength,
-            },
-        )
+def regenerate(_chatbot, task_history):
+    if not task_history:
+        return _chatbot
+    item = task_history[-1]
+    if item[1] is None:
+        return _chatbot
+    task_history[-1] = (item[0], None)
+    chatbot_item = _chatbot.pop(-1)
+    if chatbot_item[0] is None:
+        _chatbot[-1] = (_chatbot[-1][0], None)
     else:
-        outputs = pipeline.run_multi_image(
-            [image[0] for image in multiimages],
-            seed=seed,
-            formats=["gaussian", "mesh"],
-            preprocess_image=False,
-            sparse_structure_sampler_params={
-                "steps": ss_sampling_steps,
-                "cfg_strength": ss_guidance_strength,
-            },
-            slat_sampler_params={
-                "steps": slat_sampling_steps,
-                "cfg_strength": slat_guidance_strength,
-            },
-            mode=multiimage_algo,
+        _chatbot.append((chatbot_item[0], None))
+    _chatbot_gen = predict(_chatbot, task_history)
+    for _chatbot in _chatbot_gen:
+        yield _chatbot
+
+def _parse_text(text):
+    lines = text.split("\n")
+    lines = [line for line in lines if line != ""]
+    count = 0
+    for i, line in enumerate(lines):
+        if "```" in line:
+            count += 1
+            items = line.split("`")
+            if count % 2 == 1:
+                lines[i] = f'<pre><code class="language-{items[-1]}">'
+            else:
+                lines[i] = f"<br></code></pre>"
+        else:
+            if i > 0:
+                if count % 2 == 1:
+                    line = line.replace("`", r"\`")
+                    line = line.replace("<", "&lt;")
+                    line = line.replace(">", "&gt;")
+                    line = line.replace(" ", "&nbsp;")
+                    line = line.replace("*", "&ast;")
+                    line = line.replace("_", "&lowbar;")
+                    line = line.replace("-", "&#45;")
+                    line = line.replace(".", "&#46;")
+                    line = line.replace("!", "&#33;")
+                    line = line.replace("(", "&#40;")
+                    line = line.replace(")", "&#41;")
+                    line = line.replace("$", "&#36;")
+                lines[i] = "<br>" + line
+    text = "".join(lines)
+    return text
+
+def add_text_prefix(text):
+    text = f"Please generate a 3D asset based on the prompt I provided: {text}"
+    return gr.update(value=text)
+
+def token_to_words(token):
+    mesh             = "<mesh-start>"
+    for j in range(1024):
+        mesh += f"<mesh{token[j]}>"
+    mesh            += "<mesh-end>"
+    return mesh
+
+def add_text(history, task_history, text,task_new):
+    task_text = text
+    history = history if history is not None else []
+    task_history = task_history if task_history is not None else []
+    history = history + [(_parse_text(text), None)]
+    task_history = task_history + [(task_text, None)]
+    task_new     = task_new + [(task_text, None)]
+    return history, task_history,task_new
+
+def add_file(history, task_history, file, task_new, fig, query):
+    if file.name.endswith(('.obj', '.glb')):
+        position_recon = load_vertices(file.name)#(N,3)
+
+        coords        = ((torch.from_numpy(position_recon) + 0.5) * 64).int().contiguous()
+        ss            = torch.zeros(1, 64, 64, 64, dtype=torch.long)
+        ss[:, coords[:, 0], coords[:, 1], coords[:, 2]] = 1
+        token         = vqvae.Encode(ss.to(dtype=torch.float32).unsqueeze(0).to("cuda"))
+        token         = token[0].cpu().numpy().tolist()
+        words         = token_to_words(token)
+        fig            = make_pointcloud_figure(position_recon,rotate=True)
+        return history, task_history,file.name,task_new,fig,gr.update(
+            value=f"{words}\nGive a quick overview of the object represented by this 3D mesh.")
+    history = history if history is not None else []
+    task_history = task_history if task_history is not None else []
+    history = history + [((file.name,), None)]
+    task_history = task_history + [((file.name,), None)]
+    task_new     = task_new + [((file.name,), None)]
+    return history, task_history, file.name, task_new, fig, query
+
+def reset_user_input():
+    return gr.update(value="")
+
+def reset_state(task_history):
+    task_history.clear()
+    return []
+
+def make_pointcloud_figure1(verts):
+    colors = ['red' if i % 2 == 0 else 'green' for i in range(len(verts))]
+
+    scatter = go.Scatter3d(
+        x=verts[:, 0],
+        y=verts[:, 1],
+        z=verts[:, 2],
+        mode='markers',
+        marker=dict(
+            size=2,
+            color=colors,    
+            opacity=0.8
         )
-    video = render_utils.render_video(outputs['gaussian'][0], num_frames=120)['color']
-    video_geo = render_utils.render_video(outputs['mesh'][0], num_frames=120)['normal']
-    video = [np.concatenate([video[i], video_geo[i]], axis=1) for i in range(len(video))]
-    video_path = os.path.join(user_dir, 'sample.mp4')
-    imageio.mimsave(video_path, video, fps=15)
-    state = pack_state(outputs['gaussian'][0], outputs['mesh'][0])
-    torch.cuda.empty_cache()
-    return state, video_path
+    )
 
+    layout = go.Layout(
+        scene=dict(
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            zaxis=dict(visible=False)
+        ),
+        margin=dict(l=0, r=0, b=0, t=0)
+    )
+    fig = go.Figure(data=[scatter], layout=layout)
+    return fig
 
-def extract_glb(
-    state: dict,
-    mesh_simplify: float,
-    texture_size: int,
-    req: gr.Request,
-) -> Tuple[str, str]:
-    """
-    Extract a GLB file from the 3D model.
+def make_pointcloud_figure(verts,rotate=False):
+    if rotate:
+        #verts = rotate_points(verts, axis='x', angle_deg=-90)
+        #verts = rotate_points(verts, axis='y', angle_deg=-90)
+        #verts = rotate_points(verts, axis='x', angle_deg=90)
+        #verts = rotate_points(verts, axis='z', angle_deg=90)
+        verts = verts.copy()
+        verts[:, 0] *= -1.0
+    N      = len(verts)
+    soft_palette = ["#FFEBEE", "#FFF3E0", "#FFFDE7", "#E8F5E9",]
+    palette = px.colors.qualitative.Set3
+    base_colors = [palette[i % len(palette)] for i in range(N)]
+    random.shuffle(base_colors)
 
-    Args:
-        state (dict): The state of the generated 3D model.
-        mesh_simplify (float): The mesh simplification factor.
-        texture_size (int): The texture resolution.
+    camera = dict(
+        eye=dict(x=0.0, y=2.5, z=0.0),   # 相机在 Y 轴正方向 2.5 单位处
+        center=dict(x=0.0, y=0.0, z=0.0),# 焦点指向原点
+        up=dict(x=0.0, y=0.0, z=1.0),    # 保持 Z 轴向上
+        projection=dict(type="orthographic")  # 正交投影
+    )
 
-    Returns:
-        str: The path to the extracted GLB file.
-    """
-    user_dir = os.path.join(TMP_DIR, str(req.session_hash))
-    gs, mesh = unpack_state(state)
-    glb = postprocessing_utils.to_glb(gs, mesh, simplify=mesh_simplify, texture_size=texture_size, verbose=False)
-    glb_path = os.path.join(user_dir, 'sample.glb')
-    glb.export(glb_path)
-    torch.cuda.empty_cache()
-    return glb_path, glb_path
+    scatter = go.Scatter3d(
+        x=verts[:, 0],
+        y=verts[:, 1],
+        z=verts[:, 2],
+        mode='markers',
+        marker=dict(
+            size=2,           # 点更小，减少“颗粒感”
+            color=base_colors,  # 传入打乱后的 颜色列表
+            opacity=1,        # 更低的透明度，加强“云雾般”效果
+            line=dict(width=1)  # 去掉点轮廓
+        )
+    )
+    layout = go.Layout(
+        width =700,    
+        height=200,
+        scene=dict(
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            zaxis=dict(visible=False),
+            camera=camera
+        ),
+        margin=dict(l=0, r=0, b=0, t=0)
+    )
+    fig = go.Figure(data=[scatter], layout=layout)
+    return fig
 
+def rotate_points(points, axis='x', angle_deg=90):
+    angle_rad = np.deg2rad(angle_deg)
+    if axis == 'x':
+        R = trimesh.transformations.rotation_matrix(angle_rad, [1, 0, 0])[:3, :3]
+    elif axis == 'y':
+        R = trimesh.transformations.rotation_matrix(angle_rad, [0, 1, 0])[:3, :3]
+    elif axis == 'z':
+        R = trimesh.transformations.rotation_matrix(angle_rad, [0, 0, 1])[:3, :3]
+    else:
+        raise ValueError("axis must be 'x', 'y', or 'z'")
+    return points @ R.T
 
-def extract_gaussian(state: dict, req: gr.Request) -> Tuple[str, str]:
-    """
-    Extract a Gaussian file from the 3D model.
+def convert_trimesh_to_open3d(trimesh_mesh):
+    o3d_mesh = o3d.geometry.TriangleMesh()
+    o3d_mesh.vertices = o3d.utility.Vector3dVector(
+        np.asarray(trimesh_mesh.vertices, dtype=np.float64)
+    )
+    o3d_mesh.triangles = o3d.utility.Vector3iVector(
+        np.asarray(trimesh_mesh.faces, dtype=np.int32)
+    )
+    return o3d_mesh
 
-    Args:
-        state (dict): The state of the generated 3D model.
+def load_vertices(filepath):
+    mesh = trimesh.load(filepath, force='mesh')
+    mesh = convert_trimesh_to_open3d(mesh)
+    vertices = np.asarray(mesh.vertices)
+    min_vals = vertices.min()
+    max_vals = vertices.max()
+    vertices_normalized = (vertices - min_vals) / (max_vals - min_vals)  # 先映射到 [0,1]
+    vertices = vertices_normalized * 1.0 - 0.5  # 再映射到 [-0.5, 0.5]
+    vertices = np.clip(vertices, -0.5 + 1e-6, 0.5 - 1e-6)
+    mesh.vertices = o3d.utility.Vector3dVector(vertices)
+    voxel_grid = o3d.geometry.VoxelGrid.create_from_triangle_mesh_within_bounds(mesh, voxel_size=1/64, min_bound=(-0.5, -0.5, -0.5), max_bound=(0.5, 0.5, 0.5))
+    vertices = np.array([voxel.grid_index for voxel in voxel_grid.get_voxels()])
+    assert np.all(vertices >= 0) and np.all(vertices < 64), "Some vertices are out of bounds"
+    vertices = (vertices + 0.5) / 64 - 0.5
+    voxel = rotate_points(vertices, axis='x', angle_deg=90)
+    return voxel
 
-    Returns:
-        str: The path to the extracted Gaussian file.
-    """
-    user_dir = os.path.join(TMP_DIR, str(req.session_hash))
-    gs, _ = unpack_state(state)
-    gaussian_path = os.path.join(user_dir, 'sample.ply')
-    gs.save_ply(gaussian_path)
-    torch.cuda.empty_cache()
-    return gaussian_path, gaussian_path
+def add_file2(history, task_history, file,task_new):
+    history = history if history is not None else []
+    task_history = task_history if task_history is not None else []
+    history = history + [((file,), None)]
+    task_history = task_history + [((file,), None)]
+    task_new     = task_new + [((file,), None)]
+    return history, task_history,file,task_new
 
+def _transform_messages(original_messages):
+    transformed_messages = []
+    for message in original_messages:
+        new_content = []
+        for item in message['content']:
+            if 'image' in item:
+                new_item = {'type': 'image', 'image': item['image']}
+            elif 'text' in item:
+                new_item = {'type': 'text', 'text': item['text']}
+            elif 'video' in item:
+                new_item = {'type': 'video', 'video': item['video']}
+            else:
+                continue
+            new_content.append(new_item)
 
-def prepare_multi_example() -> List[Image.Image]:
-    multi_case = list(set([i.split('_')[0] for i in os.listdir("assets/example_multi_image")]))
-    images = []
-    for case in multi_case:
-        _images = []
-        for i in range(1, 4):
-            img = Image.open(f'assets/example_multi_image/{case}_{i}.png')
-            W, H = img.size
-            img = img.resize((int(W / H * 512), 512))
-            _images.append(np.array(img))
-        images.append(Image.fromarray(np.concatenate(_images, axis=1)))
-    return images
+        new_message = {'role': message['role'], 'content': new_content}
+        transformed_messages.append(new_message)
 
+    return transformed_messages
 
-def split_image(image: Image.Image) -> List[Image.Image]:
-    """
-    Split an image into multiple views.
-    """
-    image = np.array(image)
-    alpha = image[..., 3]
-    alpha = np.any(alpha>0, axis=0)
-    start_pos = np.where(~alpha[:-1] & alpha[1:])[0].tolist()
-    end_pos = np.where(alpha[:-1] & ~alpha[1:])[0].tolist()
-    images = []
-    for s, e in zip(start_pos, end_pos):
-        images.append(Image.fromarray(image[:, s:e+1]))
-    return [preprocess_image(image) for image in images]
+# --------- Configuration & Model Loading ---------
+from trellis.models.sparse_structure_vqvae import VQVAE3D
+device       = torch.device("cuda")
+vqvae        = VQVAE3D(num_embeddings=8192)
+device       = torch.device("cuda")
+vqvae.eval()
+#filepath = hf_hub_download(repo_id="yejunliang23/3DVQVAE",\
+#                           filename="3DVQVAE.bin",token="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")
+state_dict = torch.load("/mnt/vepfs/eden/yejunliang/.cache/huggingface/hub/models--yejunliang23--3DVQVAE/snapshots/46a77bb1c2406a59031271d701a570b1431719ee/3DVQVAE.bin", map_location="cpu")
+vqvae.load_state_dict(state_dict)
+vqvae=vqvae.to(device)
 
+MODEL_DIR = "yejunliang23/ShapeLLM-7B-omni"
+model_ckpt_path=MODEL_DIR
+#"Qwen/Qwen2.5-VL-3B-Instruct"
+# Load processor, tokenizer, model for Qwen2.5-VL
+model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+    model_ckpt_path, torch_dtype="auto", device_map={"": 0},token="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")
+processor = AutoProcessor.from_pretrained(model_ckpt_path,token="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")
+tokenizer = processor.tokenizer
+from huggingface_hub import hf_hub_download
 
-with gr.Blocks(delete_cache=(600, 600)) as demo:
-    gr.Markdown("""
-    ## Image to 3D Asset with [TRELLIS](https://trellis3d.github.io/)
-    * Upload an image and click "Generate" to create a 3D asset. If the image has alpha channel, it be used as the mask. Otherwise, we use `rembg` to remove the background.
-    * If you find the generated 3D asset satisfactory, click "Extract GLB" to extract the GLB file and download it.
-    """)
-    
+#pipeline_text = TrellisTextTo3DPipeline.from_pretrained("JeffreyXiang/TRELLIS-text-xlarge")
+pipeline_text = TrellisTextTo3DPipeline.from_pretrained("/mnt/vepfs/eden/yejunliang/.cache/huggingface/hub/models--JeffreyXiang--TRELLIS-text-xlarge/snapshots/e0b00432b8e3a8ecee0df806ab1df9f7281f2be4")
+pipeline_text.to(device)
+#pipeline_image = TrellisImageTo3DPipeline.from_pretrained("JeffreyXiang/TRELLIS-image-large")
+pipeline_image = TrellisImageTo3DPipeline.from_pretrained("/mnt/vepfs/eden/yejunliang/.cache/huggingface/hub/models--JeffreyXiang--TRELLIS-image-large/snapshots/25e0d31ffbebe4b5a97464dd851910efc3002d96")
+pipeline_image.to(device)
+
+_DESCRIPTION = '''
+* Project page of ShapeLLM-Omni: https://ml.cs.tsinghua.edu.cn/~zhengyi/CRM/
+* As generation tasks currently lack support for multi-turn dialogue, it’s strongly recommended to clear the chat history before starting a new task
+* The model's 3D understanding is limited to shape only, so color and texture should be ignored in 3D captioning tasks
+'''
+with gr.Blocks() as demo:
+    #gr.Markdown("""<center><font size=3> ShapeLLM-Omni-7B Demo </center>""")
+    gr.Markdown("# ShapeLLM-omni: A Native Multimodal LLM for 3D Generation and Understanding")
+    gr.Markdown(_DESCRIPTION)
     with gr.Row():
         with gr.Column():
-            with gr.Tabs() as input_tabs:
-                with gr.Tab(label="Single Image", id=0) as single_image_input_tab:
-                    image_prompt = gr.Image(label="Image Prompt", format="png", image_mode="RGBA", type="pil", height=300)
-                with gr.Tab(label="Multiple Images", id=1) as multiimage_input_tab:
-                    multiimage_prompt = gr.Gallery(label="Image Prompt", format="png", type="pil", height=300, columns=3)
-                    gr.Markdown("""
-                        Input different views of the object in separate images. 
-                        
-                        *NOTE: this is an experimental algorithm without training a specialized model. It may not produce the best results for all images, especially those having different poses or inconsistent details.*
-                    """)
-            
-            with gr.Accordion(label="Generation Settings", open=False):
-                seed = gr.Slider(0, MAX_SEED, label="Seed", value=0, step=1)
-                randomize_seed = gr.Checkbox(label="Randomize Seed", value=True)
-                gr.Markdown("Stage 1: Sparse Structure Generation")
-                with gr.Row():
-                    ss_guidance_strength = gr.Slider(0.0, 10.0, label="Guidance Strength", value=7.5, step=0.1)
-                    ss_sampling_steps = gr.Slider(1, 50, label="Sampling Steps", value=12, step=1)
-                gr.Markdown("Stage 2: Structured Latent Generation")
-                with gr.Row():
-                    slat_guidance_strength = gr.Slider(0.0, 10.0, label="Guidance Strength", value=3.0, step=0.1)
-                    slat_sampling_steps = gr.Slider(1, 50, label="Sampling Steps", value=12, step=1)
-                multiimage_algo = gr.Radio(["stochastic", "multidiffusion"], label="Multi-image Algorithm", value="stochastic")
+            chatbot = gr.Chatbot(label='ShapeLLM-Omni', elem_classes="control-height", height=500)
+            seed        = gr.Number(value=42, label="seed", precision=0)
+            top_k       = gr.Slider(label="top_k",minimum=1024,maximum=8194,value=1024,step=10)
+            top_p       = gr.Slider(label="top_p",minimum=0.1,maximum=1.0,value=0.1,step=0.05)
+            temperature = gr.Slider(label="temperature",minimum=0.1,maximum=1.0,value=0.1,step=0.05)
 
-            generate_btn = gr.Button("Generate")
-            
-            with gr.Accordion(label="GLB Extraction Settings", open=False):
-                mesh_simplify = gr.Slider(0.9, 0.98, label="Simplify", value=0.95, step=0.01)
-                texture_size = gr.Slider(512, 2048, label="Texture Size", value=1024, step=512)
-            
-            with gr.Row():
-                extract_glb_btn = gr.Button("Extract GLB", interactive=False)
-                extract_gs_btn = gr.Button("Extract Gaussian", interactive=False)
-            gr.Markdown("""
-                        *NOTE: Gaussian file can be very large (~50MB), it will take a while to display and download.*
-                        """)
-
+            query = gr.Textbox(lines=2, label='Input')
+            image_input = gr.Image(visible=False, type="filepath", label="Image Input")
+            with gr.Column():
+                with gr.Row():
+                    addfile_btn = gr.UploadButton("📁 Upload", file_types=["image", "video",".obj",".glb"])
+                    submit_btn = gr.Button("🚀 Submit")
+                with gr.Row():
+                    regen_btn = gr.Button("🤔️ Regenerate")
+                    empty_bin = gr.Button("🧹 Clear History")
+            task_history = gr.State([])
+            task_new     = gr.State([])
         with gr.Column():
-            video_output = gr.Video(label="Generated 3D Asset", autoplay=True, loop=True, height=300)
-            model_output = LitModel3D(label="Extracted GLB/Gaussian", exposure=10.0, height=300)
-            
-            with gr.Row():
-                download_glb = gr.DownloadButton(label="Download GLB", interactive=False)
-                download_gs = gr.DownloadButton(label="Download Gaussian", interactive=False)  
-    
-    is_multiimage = gr.State(False)
-    output_buf = gr.State()
+            viewer_plot  = gr.Plot(label="Voxel Visual",scale=1.0)
+            viewer_mesh  = gr.Model3D(label="Mesh Visual", height=200,scale=1.0)
 
-    # Example images at the bottom of the page
-    with gr.Row() as single_image_example:
-        examples = gr.Examples(
-            examples=[
-                f'assets/example_image/{image}'
-                for image in os.listdir("assets/example_image")
-            ],
-            inputs=[image_prompt],
-            fn=preprocess_image,
-            outputs=[image_prompt],
-            run_on_click=True,
-            examples_per_page=64,
-        )
-    with gr.Row(visible=False) as multiimage_example:
-        examples_multi = gr.Examples(
-            examples=prepare_multi_example(),
-            inputs=[image_prompt],
-            fn=split_image,
-            outputs=[multiimage_prompt],
-            run_on_click=True,
-            examples_per_page=8,
-        )
+            examples_text = gr.Examples(
+                examples=[
+                    ["A drone with four propellers and a central body."],
+                    ["A stone axe with a handle."],
+                    ["the titanic, aerial view."],
+                    ["A 3D model of a small yellow and blue robot with wheels and two pots."],
+                    ["A futuristic vehicle with a sleek design and multiple wheels."],
+                    ["A car with four wheels and a roof."],
+                ],
+                inputs=[query],
+                label="text-to-3d examples",
+                fn=add_text_prefix,
+                outputs=[query],
+                cache_examples=True,
+                )
 
-    # Handlers
-    demo.load(start_session)
-    demo.unload(end_session)
-    
-    single_image_input_tab.select(
-        lambda: tuple([False, gr.Row.update(visible=True), gr.Row.update(visible=False)]),
-        outputs=[is_multiimage, single_image_example, multiimage_example]
-    )
-    multiimage_input_tab.select(
-        lambda: tuple([True, gr.Row.update(visible=False), gr.Row.update(visible=True)]),
-        outputs=[is_multiimage, single_image_example, multiimage_example]
-    )
-    
-    image_prompt.upload(
-        preprocess_image,
-        inputs=[image_prompt],
-        outputs=[image_prompt],
-    )
-    multiimage_prompt.upload(
-        preprocess_images,
-        inputs=[multiimage_prompt],
-        outputs=[multiimage_prompt],
-    )
+            examples_text.dataset.click(
+                fn=add_text,
+                inputs=[chatbot, task_history, query,task_new],
+                outputs=[chatbot, task_history,task_new],
+            )
+            examples_image = gr.Examples(
+                label="image-to-3d examples",
+                examples=[os.path.join("examples", i) for i in os.listdir("examples")],
+                inputs=[image_input],
+                examples_per_page = 20,
+            )
+            image_input.change(
+                fn=add_file2,
+                inputs=[chatbot, task_history, image_input,task_new],
+                outputs=[chatbot, task_history,viewer_mesh,task_new],
+                show_progress=True
+            )
 
-    generate_btn.click(
-        get_seed,
-        inputs=[randomize_seed, seed],
-        outputs=[seed],
-    ).then(
-        image_to_3d,
-        inputs=[image_prompt, multiimage_prompt, is_multiimage, seed, ss_guidance_strength, ss_sampling_steps, slat_guidance_strength, slat_sampling_steps, multiimage_algo],
-        outputs=[output_buf, video_output],
-    ).then(
-        lambda: tuple([gr.Button(interactive=True), gr.Button(interactive=True)]),
-        outputs=[extract_glb_btn, extract_gs_btn],
+    submit_btn.click(add_text, [chatbot, task_history, query,task_new],\
+                               [chatbot, task_history,task_new]).then(
+        predict, [chatbot, task_history,viewer_plot,viewer_mesh,task_new,seed,top_k,top_p,temperature],\
+                 [chatbot,viewer_plot,viewer_mesh,task_new], show_progress=True
     )
-
-    video_output.clear(
-        lambda: tuple([gr.Button(interactive=False), gr.Button(interactive=False)]),
-        outputs=[extract_glb_btn, extract_gs_btn],
-    )
-
-    extract_glb_btn.click(
-        extract_glb,
-        inputs=[output_buf, mesh_simplify, texture_size],
-        outputs=[model_output, download_glb],
-    ).then(
-        lambda: gr.Button(interactive=True),
-        outputs=[download_glb],
-    )
-    
-    extract_gs_btn.click(
-        extract_gaussian,
-        inputs=[output_buf],
-        outputs=[model_output, download_gs],
-    ).then(
-        lambda: gr.Button(interactive=True),
-        outputs=[download_gs],
-    )
-
-    model_output.clear(
-        lambda: gr.Button(interactive=False),
-        outputs=[download_glb],
-    )
+    submit_btn.click(reset_user_input, [], [query])
+    empty_bin.click(reset_state, [task_history], [chatbot], show_progress=True)
+    regen_btn.click(regenerate,  [chatbot, task_history], [chatbot], show_progress=True)
+    addfile_btn.upload(add_file, [chatbot, task_history, addfile_btn, task_new, viewer_plot, query],\
+                                 [chatbot, task_history, viewer_mesh, task_new, viewer_plot, query],\
+                                  show_progress=True)
     
 
-# Launch the Gradio app
-if __name__ == "__main__":
-    pipeline = TrellisImageTo3DPipeline.from_pretrained("microsoft/TRELLIS-image-large")
-    pipeline.cuda()
-    demo.launch()
+demo.launch()
