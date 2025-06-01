@@ -31,6 +31,12 @@
 - [6/03] 🔥🔥We released the pretrained weights for both **ShapeLLM-omni** (7B) and **3DVQVAE**.
 - [6/03] 🔥🔥We released 50k high-quality 3D edited data pairs.
 
+## Inference
+We suggest using Gradio UI for visualizing inference.
+```
+python app.py
+```
+
 ## Important Notes
 - Please refer to our [project_page](https://zhaorw02.github.io/DeepMesh/) for more examples.
 ## Todo
