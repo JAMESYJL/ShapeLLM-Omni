@@ -125,11 +125,10 @@ def predict(_chatbot,task_history,viewer_voxel,viewer_mesh,task_new,seed,top_k,t
 
     if encoding_indices is not None:
         print("processing mesh...")
-        #encoding_indices = token_to_mesh(full_response)
         recon = vqvae.Decode(encoding_indices.to(model.device))
-        z_s           = recon[0].detach().cpu() #torch.Size([1, 64, 64, 64])
-        z_s           = (z_s>0)*1      #torch.Size([1, 64, 64, 64])
-        indices       = torch.nonzero(z_s[0] == 1)  #torch.Size([1, 64, 64, 64])
+        z_s           = recon[0].detach().cpu() 
+        z_s           = (z_s>0)*1      
+        indices       = torch.nonzero(z_s[0] == 1)  
         position_recon= (indices.float() + 0.5) / 64 - 0.5 
         fig = make_pointcloud_figure(position_recon)
         yield _chatbot,fig,viewer_mesh,task_new
@@ -276,32 +275,6 @@ def reset_state(task_history):
     task_history.clear()
     return []
 
-def make_pointcloud_figure1(verts):
-    colors = ['red' if i % 2 == 0 else 'green' for i in range(len(verts))]
-
-    scatter = go.Scatter3d(
-        x=verts[:, 0],
-        y=verts[:, 1],
-        z=verts[:, 2],
-        mode='markers',
-        marker=dict(
-            size=2,
-            color=colors,    
-            opacity=0.8
-        )
-    )
-
-    layout = go.Layout(
-        scene=dict(
-            xaxis=dict(visible=False),
-            yaxis=dict(visible=False),
-            zaxis=dict(visible=False)
-        ),
-        margin=dict(l=0, r=0, b=0, t=0)
-    )
-    fig = go.Figure(data=[scatter], layout=layout)
-    return fig
-
 def make_pointcloud_figure(verts,rotate=False):
     if rotate:
         verts = verts.copy()
@@ -424,8 +397,7 @@ vqvae=vqvae.to(device)
 
 MODEL_DIR = "yejunliang23/ShapeLLM-7B-omni"
 model_ckpt_path=MODEL_DIR
-model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-    model_ckpt_path, torch_dtype="auto", device_map={"": 0})
+model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_ckpt_path, torch_dtype="auto", device_map={"": 0})
 processor = AutoProcessor.from_pretrained(model_ckpt_path)
 tokenizer = processor.tokenizer
 from huggingface_hub import hf_hub_download
