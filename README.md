@@ -22,8 +22,9 @@
 <a href='https://arxiv.org/abs/2503.15265'><img src='https://img.shields.io/badge/arXiv-2503.15265-b31b1b.svg'></a> &nbsp;&nbsp;&nbsp;&nbsp;
  <a href='https://zhaorw02.github.io/DeepMesh/'><img src='https://img.shields.io/badge/Project-Page-Green'></a> &nbsp;&nbsp;&nbsp;&nbsp;
  <a><img src='https://img.shields.io/badge/License-MIT-blue'></a> &nbsp;&nbsp;&nbsp;&nbsp;
-<a href="https://huggingface.co/zzzrw/DeepMesh/tree/main"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Weights-HF-orange"></a> &nbsp;&nbsp;&nbsp;&nbsp;
-<a href='https://www.youtube.com/watch?v=6grL7bSbQ2w'><img src='https://img.shields.io/badge/Youtube-Video-b31b1b.svg'>
+<a href="https://huggingface.co/yejunliang23/ShapeLLM-7B-omni"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Weights-HF-orange"></a> &nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://huggingface.co/yejunliang23/3DVQVAE"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Weights-HF-orange"></a> &nbsp;&nbsp;&nbsp;&nbsp;
+<a href='https://huggingface.co/datasets/yejunliang23/3D-Alpaca'><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-HF-orange">
 
 </div>
 
