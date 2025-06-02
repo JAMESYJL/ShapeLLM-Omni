@@ -41,6 +41,9 @@ We suggest using Gradio UI for visualizing inference.
 ```
 python app.py
 ```
+<p align="center">
+    <img src="assets/gradio.jpeg">
+</p>
 
 ## Important Notes
 - Please refer to our [project_page](https://zhaorw02.github.io/DeepMesh/) for more examples.
