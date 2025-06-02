@@ -45,6 +45,12 @@ python app.py
     <img src="assets/gradio.jpeg">
 </p>
 
+## Qualitative result
+
+https://github.com/user-attachments/assets/79a33188-3ef0-4702-9892-15b864710f2d
+
+https://github.com/user-attachments/assets/43b7bc78-1bef-4b79-bbdb-edfc4ad2b8e1
+  
 ## Important Notes
 - Please refer to our [project_page](https://zhaorw02.github.io/DeepMesh/) for more examples.
 ## Todo
