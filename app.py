@@ -142,7 +142,7 @@ def predict(_chatbot,task_history,viewer_voxel,viewer_mesh,task_new,seed,top_k,t
         coords = coords.to(model.device)
         try:
             print("processing mesh...")
-            if len(image_lst) == []:
+            if len(image_lst) == 0:
                 # text to 3d
                 with torch.no_grad():
                     prompt  = chat_query
