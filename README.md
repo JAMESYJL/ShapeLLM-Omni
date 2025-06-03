@@ -31,6 +31,8 @@
     <img src="assets/head.jpg">
 </p>
 
+https://github.com/user-attachments/assets/2161aaad-7f17-4dd8-805c-56aa8542d94f
+
 ## Release
 - [6/03] 🔥🔥We released the pretrained weights for both **ShapeLLM-Omni** (7B) and **3DVQVAE**.
 - [6/03] 🔥🔥We released 50k high-quality 3D edited data pairs.
@@ -54,8 +56,6 @@ For templates used for different tasks, please refer to the [templates.txt](http
 https://github.com/user-attachments/assets/79a33188-3ef0-4702-9892-15b864710f2d
 
 https://github.com/user-attachments/assets/43b7bc78-1bef-4b79-bbdb-edfc4ad2b8e1
-
-https://github.com/user-attachments/assets/6162f047-01bb-4795-adce-2a83a8a1bde1
   
 ## Important Notes
 - Please refer to our [project_page](https://jamesyjl.github.io/ShapeLLM/) for more examples.
