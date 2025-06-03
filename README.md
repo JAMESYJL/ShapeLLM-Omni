@@ -35,6 +35,9 @@
 - [6/03] 🔥🔥We released the pretrained weights for both **ShapeLLM-Omni** (7B) and **3DVQVAE**.
 - [6/03] 🔥🔥We released 50k high-quality 3D edited data pairs.
 
+## Installation
+Please set up the Python environment following [TRELLIS](https://github.com/microsoft/TRELLIS/tree/main) and [QWEN2.5-vl](https://github.com/QwenLM/Qwen2.5-VL)
+
 ## Inference
 We suggest using Gradio UI for visualizing inference.
 ```
@@ -43,6 +46,8 @@ python app.py
 <p align="center">
     <img src="assets/gradio.jpeg">
 </p>
+
+For templates used for different tasks, please refer to the [templates.txt](https://github.com/JAMESYJL/ShapeLLM-Omni/blob/main/templates.txt)
 
 ## Qualitative result
 
@@ -53,11 +58,11 @@ https://github.com/user-attachments/assets/43b7bc78-1bef-4b79-bbdb-edfc4ad2b8e1
 https://github.com/user-attachments/assets/6162f047-01bb-4795-adce-2a83a8a1bde1
   
 ## Important Notes
-- Please refer to our [project_page](https://zhaorw02.github.io/DeepMesh/) for more examples.
+- Please refer to our [project_page](https://jamesyjl.github.io/ShapeLLM/) for more examples.
 ## Todo
+- [ ] Release of the entire 3D-Alpaca dataset.
 - [ ] Release of training code.
 - [ ] Release of model weights featuring multi-turn dialogue and 3D editing capabilities.
-- [ ] Release of the entire 3D-Alpaca dataset.
 
 ## Acknowledgement
 Our code is based on these wonderful repos:
