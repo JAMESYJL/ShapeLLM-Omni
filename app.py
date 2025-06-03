@@ -16,6 +16,7 @@ from PIL import Image
 import plotly.express as px
 import random
 import open3d as o3d
+from huggingface_hub import hf_hub_download
 
 def _remove_image_special(text):
     text = text.replace('<ref>', '').replace('</ref>', '')
@@ -408,8 +409,8 @@ pipeline_image = TrellisImageTo3DPipeline.from_pretrained("JeffreyXiang/TRELLIS-
 pipeline_image.to(device)
 
 _DESCRIPTION = '''
-* Project page of ShapeLLM-Omni: https://ml.cs.tsinghua.edu.cn/~zhengyi/CRM/
-* As generation tasks currently lack support for multi-turn dialogue, it’s strongly recommended to clear the chat history before starting a new task
+* Project page of ShapeLLM-Omni: https://jamesyjl.github.io/ShapeLLM/
+* As generation tasks currently lack support for multi-turn dialogue, it's strongly recommended to clear the chat history before starting a new task
 * The model's 3D understanding is limited to shape only, so color and texture should be ignored in 3D captioning tasks
 '''
 with gr.Blocks() as demo:
