@@ -72,4 +72,17 @@ Our code is based on these wonderful repos:
 * **[Qwen2.5-VL](https://github.com/QwenLM/Qwen2.5-VL)**
 * [LLaMA-Mesh](https://github.com/nv-tlabs/LLaMA-Mesh)
 
+## ✍️ Citation
+
+```bibtex
+@misc{ye2025shapellmomninativemultimodalllm,
+title={ShapeLLM-Omni: A Native Multimodal LLM for 3D Generation and Understanding}, 
+         author={Junliang Ye and Zhengyi Wang and Ruowen Zhao and Shenghao Xie and Jun Zhu},
+         year={2025},
+         eprint={2506.01853},
+         archivePrefix={arXiv},
+         primaryClass={cs.CV},
+         url={https://arxiv.org/abs/2506.01853}, 
+} 
+```
 
