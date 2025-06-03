@@ -160,7 +160,7 @@ def predict(_chatbot,task_history,viewer_voxel,viewer_mesh,task_new,seed,top_k,t
                 )
                 glb.export(f"temper.glb")
                 print("processing mesh over...")
-                yield _chatbot,fig,"temper.glb"
+                yield _chatbot,fig,"temper.glb",task_new
             else:
                 # image to 3d
                 with torch.no_grad():
