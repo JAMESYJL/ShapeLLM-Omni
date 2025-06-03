@@ -27,11 +27,11 @@
 
 </div>
 
+https://github.com/user-attachments/assets/e36001a5-cecb-46dd-83fa-77723676fb45
+
 <p align="center">
     <img src="assets/head.jpg">
 </p>
-
-https://github.com/user-attachments/assets/2161aaad-7f17-4dd8-805c-56aa8542d94f
 
 ## Release
 - [6/03] 🔥🔥We released the pretrained weights for both **ShapeLLM-Omni** (7B) and **3DVQVAE**.
