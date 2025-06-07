@@ -440,7 +440,7 @@ vqvae=vqvae.to(device)
 
 MODEL_DIR = "yejunliang23/ShapeLLM-7B-omni"
 model_ckpt_path=MODEL_DIR
-model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_ckpt_path, torch_dtype="auto", device_map="auto")
+model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_ckpt_path, torch_dtype="auto", device_map={"": 0})
 processor = AutoProcessor.from_pretrained(model_ckpt_path)
 tokenizer = processor.tokenizer
 from huggingface_hub import hf_hub_download
