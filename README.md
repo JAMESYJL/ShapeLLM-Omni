@@ -37,6 +37,7 @@ https://github.com/user-attachments/assets/e36001a5-cecb-46dd-83fa-77723676fb45
 ## Release
 - [6/03] 🔥🔥We released the pretrained weights for both **ShapeLLM-Omni** (7B) and **3DVQVAE**.
 - [6/03] 🔥🔥We released 50k high-quality 3D edited data pairs.
+- [6/07] 🔥🔥We built a [demo](https://huggingface.co/spaces/yejunliang23/ShapLLM-Omni) for everyone to try out.
 
 ## Installation
 Please set up the Python environment following [TRELLIS](https://github.com/microsoft/TRELLIS/tree/main) and [QWEN2.5-vl](https://github.com/QwenLM/Qwen2.5-VL)
