@@ -40,7 +40,10 @@ https://github.com/user-attachments/assets/e36001a5-cecb-46dd-83fa-77723676fb45
 - [6/07] 🔥🔥We built a [demo](https://huggingface.co/spaces/yejunliang23/ShapLLM-Omni) for everyone to try out.
 
 ## Installation
-Please set up the Python environment following [TRELLIS](https://github.com/microsoft/TRELLIS/tree/main) and [QWEN2.5-vl](https://github.com/QwenLM/Qwen2.5-VL)
+Please set up the Python environment following [TRELLIS](https://github.com/microsoft/TRELLIS/tree/main) and [QWEN2.5-vl](https://github.com/QwenLM/Qwen2.5-VL), or you can create by:
+```
+pip install -r requirements.txt
+```
 
 ## Inference
 We suggest using Gradio UI for visualizing inference.
