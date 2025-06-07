@@ -1,6 +1,7 @@
 <p align="center">
   <h3 align="center"><strong>ShapeLLM-Omni: A Native Multimodal LLM for 3D Generation and Understanding</strong></h3>
 
+
 <p align="center">
     <a href="https://jamesyjl.github.io/">Junliang Ye</a><sup>1,2*</sup>,
     <a href="https://thuwzy.github.io/">Zhengyi Wang</a><sup>1,2*</sup>,
@@ -28,7 +29,7 @@
 
 </div>
 
-https://github.com/user-attachments/assets/e36001a5-cecb-46dd-83fa-77723676fb45
+https://github.com/user-attachments/assets/9e5bc462-5d50-4ff4-914a-9556324528c6
 
 <p align="center">
     <img src="assets/head.jpg">
