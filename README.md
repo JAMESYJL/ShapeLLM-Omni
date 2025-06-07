@@ -21,7 +21,8 @@
 
 <a href='https://arxiv.org/abs/2506.01853'><img src='https://img.shields.io/badge/arXiv-2506.01853-b31b1b.svg'></a> &nbsp;&nbsp;&nbsp;&nbsp;
  <a href='https://jamesyjl.github.io/ShapeLLM/'><img src='https://img.shields.io/badge/Project-Page-Green'></a> &nbsp;&nbsp;&nbsp;&nbsp;
- <a><img src='https://img.shields.io/badge/License-MIT-blue'></a> &nbsp;&nbsp;&nbsp;&nbsp;
+ <a href="https://huggingface.co/spaces/yejunliang23/ShapLLM-Omni"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Gradio%20Demo-HF-orange"></a>
+ &nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://huggingface.co/yejunliang23/ShapeLLM-7B-omni"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Weights-HF-orange"></a> &nbsp;&nbsp;&nbsp;&nbsp;
 <a href='https://huggingface.co/datasets/yejunliang23/3D-Alpaca'><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-HF-orange">
 
