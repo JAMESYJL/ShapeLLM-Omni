@@ -79,6 +79,62 @@ class TrellisImageTo3DPipeline(Pipeline):
         ])
         self.image_cond_model_transform = transform
 
+    def preprocess_image_white(self, input: Image.Image) -> Image.Image:
+        avg_sw = 0.626  
+        avg_sh = 0.608  
+        has_alpha = False
+        if input.mode == 'RGBA':
+            alpha = np.array(input)[:, :, 3]
+            if not np.all(alpha == 255):
+                has_alpha = True
+
+        if has_alpha:
+            fg = input.convert('RGBA')
+        else:
+            img = input.convert('RGB')
+            max_size = max(img.size)
+            scale0 = min(1, 1024 / max_size)
+            if scale0 < 1:
+                img = img.resize(
+                    (int(img.width * scale0), int(img.height * scale0)),
+                    Image.Resampling.LANCZOS
+                )
+            if getattr(self, 'rembg_session', None) is None:
+                self.rembg_session = rembg.new_session('u2net')
+            fg = rembg.remove(img, session=self.rembg_session)
+
+        # —— 2. 找包围盒并裁剪（±20%） —— #
+        arr = np.array(fg)
+        alpha = arr[:, :, 3]
+        ys, xs = np.where(alpha > 0.8 * 255)
+        x0, y0 = xs.min(), ys.min()
+        x1, y1 = xs.max(), ys.max()
+        # 原始宽高
+        w0, h0 = x1 - x0, y1 - y0
+        # 中心 & 放大 20%
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        L = max(w0, h0) * 1.2
+        x0n = int(cx - L/2); y0n = int(cy - L/2)
+        x1n = int(cx + L/2); y1n = int(cy + L/2)
+        fg = fg.crop((x0n, y0n, x1n, y1n))
+
+        # —— 3. 按 avg_sw/avg_sh 调整前景尺寸 —— #
+        # 假设你在类里定义了 avg_sw, avg_sh = 前景占宽/高的目标比例（0~1）
+        W, H = 512, 512
+        w, h = fg.size
+        target_w = avg_sw * W
+        target_h = avg_sh * H
+        scale1 = min(target_w / w, target_h / h)
+        new_w, new_h = int(w * scale1), int(h * scale1)
+        fg_resized = fg.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+        # —— 4. 白底画布上居中贴前景，输出 RGB —— #
+        canvas = Image.new('RGBA', (W, H), (255, 255, 255, 255))
+        x_off = (W - new_w) // 2
+        y_off = (H - new_h) // 2
+        canvas.paste(fg_resized, (x_off, y_off), fg_resized)
+        return canvas.convert('RGB')
+
     def preprocess_image(self, input: Image.Image) -> Image.Image:
         """
         Preprocess the input image.
