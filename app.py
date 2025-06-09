@@ -35,6 +35,9 @@ def is_video_file(filename):
     video_extensions = ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.mpeg']
     return any(filename.lower().endswith(ext) for ext in video_extensions)
 
+def add_image_prefix(image_path):
+    return image_path,gr.update(value="Generate a 3D mesh from the provided image.")    
+    
 def token_to_mesh(full_response):
     d1=full_response.split("><mesh")
     d2=[]
@@ -463,9 +466,9 @@ with gr.Blocks() as demo:
             chatbot = gr.Chatbot(label='ShapeLLM-Omni', elem_classes="control-height", height=500)
             with gr.Accordion(label="Generation Settings", open=False):
                 seed        = gr.Number(value=42, label="seed", precision=0)
-                top_k       = gr.Slider(label="top_k",minimum=1024,maximum=8194,value=1024,step=10)
-                top_p       = gr.Slider(label="top_p",minimum=0.1,maximum=1.0,value=0.1,step=0.05)
-                temperature = gr.Slider(label="temperature",minimum=0.1,maximum=1.0,value=0.1,step=0.05)
+                top_k       = gr.Slider(label="top_k",minimum=1024,maximum=8194,value=8192,step=10)
+                top_p       = gr.Slider(label="top_p",minimum=0.1,maximum=1.0,value=0.7,step=0.05)
+                temperature = gr.Slider(label="temperature",minimum=0.1,maximum=1.0,value=0.7,step=0.05)
             with gr.Accordion(label="GLB Extraction Settings", open=False):
                 mesh_simplify = gr.Slider(0.9, 0.98, label="Simplify", value=0.95, step=0.01)
                 texture_size = gr.Slider(512, 2048, label="Texture Size", value=1024, step=512)
@@ -511,6 +514,9 @@ with gr.Blocks() as demo:
                 label="image-to-3d examples",
                 examples=[os.path.join("examples", i) for i in os.listdir("examples")],
                 inputs=[image_input],
+                fn=add_image_prefix,
+                outputs=[image_input,query],
+                cache_examples=True,
                 examples_per_page = 20,
             )
             image_input.change(
