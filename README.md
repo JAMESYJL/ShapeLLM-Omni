@@ -81,14 +81,11 @@ Our code is based on these wonderful repos:
 ## ✍️ Citation
 
 ```bibtex
-@misc{ye2025shapellmomninativemultimodalllm,
-title={ShapeLLM-Omni: A Native Multimodal LLM for 3D Generation and Understanding}, 
-         author={Junliang Ye and Zhengyi Wang and Ruowen Zhao and Shenghao Xie and Jun Zhu},
-         year={2025},
-         eprint={2506.01853},
-         archivePrefix={arXiv},
-         primaryClass={cs.CV},
-         url={https://arxiv.org/abs/2506.01853}, 
-} 
+@article{ye2025shapellm,
+  title={ShapeLLM-Omni: A Native Multimodal LLM for 3D Generation and Understanding},
+  author={Ye, Junliang and Wang, Zhengyi and Zhao, Ruowen and Xie, Shenghao and Zhu, Jun},
+  journal={arXiv preprint arXiv:2506.01853},
+  year={2025}
+}
 ```
 
