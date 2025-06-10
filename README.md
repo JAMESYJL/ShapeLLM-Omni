@@ -76,7 +76,7 @@ Our code is based on these wonderful repos:
 * **[TRELLIS](https://github.com/microsoft/TRELLIS)**
 * **[PointLLM](https://github.com/OpenRobotLab/PointLLM)**
 * **[Qwen2.5-VL](https://github.com/QwenLM/Qwen2.5-VL)**
-* [LLaMA-Mesh](https://github.com/nv-tlabs/LLaMA-Mesh)
+* **[LLaMA-Mesh](https://github.com/nv-tlabs/LLaMA-Mesh)**
 
 ## ✍️ Citation
 
