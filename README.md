@@ -51,10 +51,6 @@ We suggest using Gradio UI for visualizing inference.
 ```
 python app.py
 ```
-<p align="center">
-    <img src="assets/gradio.jpeg">
-</p>
-
 For templates used for different tasks, please refer to the [templates.txt](https://github.com/JAMESYJL/ShapeLLM-Omni/blob/main/templates.txt)
 
 ## Qualitative result
