@@ -77,6 +77,7 @@ Our code is based on these wonderful repos:
 * **[PointLLM](https://github.com/OpenRobotLab/PointLLM)**
 * **[Qwen2.5-VL](https://github.com/QwenLM/Qwen2.5-VL)**
 * **[LLaMA-Mesh](https://github.com/nv-tlabs/LLaMA-Mesh)**
+* **[DeepMesh](https://github.com/zhaorw02/DeepMesh)**
 
 ## ✍️ Citation
 
