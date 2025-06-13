@@ -52,7 +52,7 @@ We suggest using Gradio UI for visualizing inference.
 python app.py
 ```
 
-https://github.com/user-attachments/assets/9e5bc462-5d50-4ff4-914a-9556324528c6
+https://github.com/user-attachments/assets/edb2b828-b65c-40f6-88da-9f5094c40b2e
 
 For templates used for different tasks, please refer to the [templates.txt](https://github.com/JAMESYJL/ShapeLLM-Omni/blob/main/templates.txt)
 
