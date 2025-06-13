@@ -29,7 +29,7 @@
 
 </div>
 
-https://github.com/user-attachments/assets/9e5bc462-5d50-4ff4-914a-9556324528c6
+https://github.com/user-attachments/assets/f77bb981-15ef-4546-ae1a-9baf05dc8002
 
 <p align="center">
     <img src="assets/head.jpg">
@@ -51,6 +51,9 @@ We suggest using Gradio UI for visualizing inference.
 ```
 python app.py
 ```
+
+https://github.com/user-attachments/assets/9e5bc462-5d50-4ff4-914a-9556324528c6
+
 For templates used for different tasks, please refer to the [templates.txt](https://github.com/JAMESYJL/ShapeLLM-Omni/blob/main/templates.txt)
 
 ## Qualitative result
