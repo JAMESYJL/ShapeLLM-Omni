@@ -6,7 +6,7 @@
     <a href="https://jamesyjl.github.io/">Junliang Ye</a><sup>1,2*</sup>,
     <a href="https://thuwzy.github.io/">Zhengyi Wang</a><sup>1,2*</sup>,
     <a href="https://zhaorw02.github.io/">Ruowen Zhao</a><sup>1*</sup>,
-    <a href="">Shenghao Xie</a><sup>3</sup>,
+    <a href="https://shxie2020.github.io/">Shenghao Xie</a><sup>3</sup>,
     <a href="https://ml.cs.tsinghua.edu.cn/~jun/index.shtml">Jun Zhu</a><sup>1,2†</sup>
     <br>
     <sup>*</sup>Equal Contribution.
