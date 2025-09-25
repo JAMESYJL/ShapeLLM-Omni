@@ -17,7 +17,7 @@
     <sup>2</sup>ShengShu,
     <sup>3</sup>Peking University,
 </p>
-
+<h3 align="center">NeurIPS 2025 Spotlight 🔥</h3>
 <div align="center">
 
 <a href='https://arxiv.org/abs/2506.01853'><img src='https://img.shields.io/badge/arXiv-2506.01853-b31b1b.svg'></a> &nbsp;&nbsp;&nbsp;&nbsp;
