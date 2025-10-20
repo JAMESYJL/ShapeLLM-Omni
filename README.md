@@ -77,7 +77,7 @@ Our code is based on these wonderful repos:
 * **[Qwen2.5-VL](https://github.com/QwenLM/Qwen2.5-VL)**
 * **[LLaMA-Mesh](https://github.com/nv-tlabs/LLaMA-Mesh)**
 * **[DeepMesh](https://github.com/zhaorw02/DeepMesh)**
-
+Also, we invite you to explore our latest work — [Nano3D](https://jamesyjl.github.io/Nano3D/), a training-free 3D editing algorithm without mask constraints. Based on this algorithm, we will soon release a higher-quality 3D editing dataset — 3D-Alpaca-Editing-v2 (Nano3D-Edit-100k) — as open source.
 ## ✍️ Citation
 
 ```bibtex
